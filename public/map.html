@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Map Your Library</title>
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+    <!-- Fabric.js 5.3.1 -->
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"
+    ></script>
+
+
+    <!-- =========================================
+         BOOKSHELF MODAL STYLE
+    ========================================== -->
+
+    <style>
+
+        .bookshelf-modal-overlay {
+
+            position: fixed;
+
+            inset: 0;
+
+            background: rgba(15, 23, 42, 0.55);
+
+            display: none;
+
+            align-items: center;
+
+            justify-content: center;
+
+            z-index: 9999;
+
+            padding: 20px;
+
+        }
+
+
+        .bookshelf-modal-overlay.show {
+
+            display: flex;
+
+        }
+
+
+        .bookshelf-modal {
+
+            width: min(760px, 95vw);
+
+            max-height: 90vh;
+
+            overflow-y: auto;
+
+            background: #ffffff;
+
+            border-radius: 16px;
+
+            box-shadow:
+                0 25px 70px rgba(15, 23, 42, 0.3);
+
+            padding: 24px;
+
+        }
+
+
+        .bookshelf-modal-header {
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+            gap: 15px;
+
+            margin-bottom: 20px;
+
+            border-bottom: 1px solid #e2e8f0;
+
+            padding-bottom: 15px;
+
+        }
+
+
+        .bookshelf-modal-header h2 {
+
+            margin: 0;
+
+            font-size: 22px;
+
+            color: #0f172a;
+
+        }
+
+
+        .bookshelf-close-btn {
+
+            border: none;
+
+            background: #f1f5f9;
+
+            color: #334155;
+
+            width: 36px;
+
+            height: 36px;
+
+            border-radius: 8px;
+
+            font-size: 22px;
+
+            cursor: pointer;
+
+        }
+
+
+        .bookshelf-close-btn:hover {
+
+            background: #e2e8f0;
+
+        }
+
+
+        .bookshelf-field {
+
+            margin-bottom: 18px;
+
+        }
+
+
+        .bookshelf-field label {
+
+            display: block;
+
+            font-weight: 600;
+
+            color: #334155;
+
+            margin-bottom: 7px;
+
+        }
+
+
+        .bookshelf-field input[type="text"],
+        .bookshelf-field textarea {
+
+            width: 100%;
+
+            box-sizing: border-box;
+
+            border: 1px solid #cbd5e1;
+
+            border-radius: 8px;
+
+            padding: 10px 12px;
+
+            font-size: 14px;
+
+            outline: none;
+
+            font-family: inherit;
+
+        }
+
+
+        .bookshelf-field input[type="text"]:focus,
+        .bookshelf-field textarea:focus {
+
+            border-color: #64748b;
+
+        }
+
+
+        .bookshelf-field textarea {
+
+            min-height: 80px;
+
+            resize: vertical;
+
+        }
+
+
+        .bookshelf-items-title {
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+            gap: 10px;
+
+            margin: 20px 0 12px;
+
+        }
+
+
+        .bookshelf-items-title h3 {
+
+            margin: 0;
+
+            color: #0f172a;
+
+            font-size: 17px;
+
+        }
+
+
+        .bookshelf-add-item-btn {
+
+            border: none;
+
+            background: #0f172a;
+
+            color: white;
+
+            padding: 9px 13px;
+
+            border-radius: 8px;
+
+            cursor: pointer;
+
+            font-size: 13px;
+
+        }
+
+
+        .bookshelf-add-item-btn:hover {
+
+            background: #1e293b;
+
+        }
+
+
+        .bookshelf-items {
+
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 12px;
+
+        }
+
+
+        .bookshelf-empty {
+
+            border: 1px dashed #cbd5e1;
+
+            border-radius: 10px;
+
+            padding: 25px;
+
+            text-align: center;
+
+            color: #64748b;
+
+            background: #f8fafc;
+
+        }
+
+
+        .bookshelf-product-card {
+
+            border: 1px solid #e2e8f0;
+
+            border-radius: 12px;
+
+            padding: 14px;
+
+            background: #f8fafc;
+
+        }
+
+
+        .bookshelf-product-grid {
+
+            display: grid;
+
+            grid-template-columns: 110px 1fr;
+
+            gap: 15px;
+
+        }
+
+
+        .bookshelf-image-box {
+
+            width: 110px;
+
+            height: 140px;
+
+            border-radius: 8px;
+
+            background: #e2e8f0;
+
+            overflow: hidden;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            color: #64748b;
+
+            font-size: 12px;
+
+            text-align: center;
+
+        }
+
+
+        .bookshelf-image-box img {
+
+            width: 100%;
+
+            height: 100%;
+
+            max-width: 100%;
+
+            max-height: 100%;
+
+            object-fit: contain;
+
+            display: block;
+
+        }
+
+
+        .bookshelf-product-fields {
+
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 9px;
+
+        }
+
+
+        .bookshelf-product-fields input,
+        .bookshelf-product-fields textarea {
+
+            width: 100%;
+
+            box-sizing: border-box;
+
+            border: 1px solid #cbd5e1;
+
+            border-radius: 7px;
+
+            padding: 8px 10px;
+
+            font-family: inherit;
+
+            font-size: 13px;
+
+            background: white;
+
+        }
+
+
+        .bookshelf-product-fields textarea {
+
+            min-height: 65px;
+
+            resize: vertical;
+
+        }
+
+
+        .bookshelf-product-actions {
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+            gap: 8px;
+
+            margin-top: 9px;
+
+        }
+
+
+        .bookshelf-image-input {
+
+            font-size: 12px;
+
+            max-width: 100%;
+
+        }
+
+
+        .bookshelf-remove-item {
+
+            border: none;
+
+            background: #fee2e2;
+
+            color: #b91c1c;
+
+            padding: 7px 10px;
+
+            border-radius: 7px;
+
+            cursor: pointer;
+
+        }
+
+
+        .bookshelf-remove-item:hover {
+
+            background: #fecaca;
+
+        }
+
+
+        .bookshelf-modal-footer {
+
+            display: flex;
+
+            justify-content: flex-end;
+
+            gap: 10px;
+
+            margin-top: 22px;
+
+            padding-top: 16px;
+
+            border-top: 1px solid #e2e8f0;
+
+        }
+
+
+        .bookshelf-modal-footer button {
+
+            border: none;
+
+            padding: 10px 18px;
+
+            border-radius: 8px;
+
+            cursor: pointer;
+
+            font-size: 14px;
+
+        }
+
+
+        .bookshelf-cancel-btn {
+
+            background: #e2e8f0;
+
+            color: #334155;
+
+        }
+
+
+        .bookshelf-save-btn {
+
+            background: #0f172a;
+
+            color: white;
+
+        }
+
+
+        .bookshelf-save-btn:hover {
+
+            background: #1e293b;
+
+        }
+
+
+        /* =========================================
+           EXTRA OBJECT PREVIEWS
+        ========================================== */
+        .accounting-desk-preview,
+        .plant-preview,
+        .free-shape-preview {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .accounting-desk-preview {
+            background: #c48a54;
+            border: 2px solid #7c4a26;
+            border-radius: 8px;
+        }
+
+        .accounting-screen {
+            position: absolute; width: 28px; height: 17px;
+            left: 50%; top: 9px; transform: translateX(-50%);
+            background: #334155; border-radius: 3px;
+        }
+        .accounting-keyboard {
+            position: absolute; width: 38px; height: 9px;
+            left: 50%; top: 31px; transform: translateX(-50%);
+            background: #e5e7eb; border-radius: 3px;
+        }
+        .accounting-drawer {
+            position: absolute; width: 17px; height: 24px;
+            left: 7px; bottom: 6px; background: #8b5a2b; border-radius: 3px;
+        }
+
+        .plant-preview { background: #f8fafc; }
+        .plant-leaves {
+            position: absolute; width: 38px; height: 27px;
+            left: 50%; top: 4px; transform: translateX(-50%);
+            background: #22c55e; border-radius: 55% 45% 55% 45%;
+            box-shadow: -13px 8px 0 #15803d, 13px 9px 0 #16a34a;
+        }
+        .plant-pot {
+            position: absolute; left: 50%; bottom: 5px; transform: translateX(-50%);
+            background: #b45309; border: 2px solid #78350f;
+        }
+        .square-pot { width: 28px; height: 20px; border-radius: 4px; }
+        .round-pot { width: 31px; height: 20px; border-radius: 50%; }
+
+        .free-shape-preview { background: #f8fafc; }
+        .rectangle-shape-preview::after,
+        .circle-shape-preview::after,
+        .ellipse-shape-preview::after {
+            content: ""; position: absolute; left: 50%; top: 50%;
+            transform: translate(-50%, -50%); background: #cbd5e1;
+            border: 2px solid #475569;
+        }
+        .rectangle-shape-preview::after { width: 48px; height: 27px; border-radius: 4px; }
+        .circle-shape-preview::after { width: 34px; height: 34px; border-radius: 50%; }
+        .ellipse-shape-preview::after { width: 48px; height: 27px; border-radius: 50%; }
+        .triangle-shape-preview::after {
+            content: ""; position: absolute; left: 50%; top: 50%;
+            transform: translate(-50%, -45%); width: 0; height: 0;
+            border-left: 21px solid transparent; border-right: 21px solid transparent;
+            border-bottom: 36px solid #94a3b8;
+        }
+
+        #undo-btn:disabled, #redo-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        @media (max-width: 600px) {
+
+            .bookshelf-product-grid {
+
+                grid-template-columns: 1fr;
+
+            }
+
+            .bookshelf-image-box {
+
+                width: 100%;
+
+                height: 180px;
+
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body class="map-page">
+
+
+    <!-- =========================================
+         TOP TOOLBAR
+    ========================================== -->
+
+    <header class="editor-toolbar">
+
+
+        <!-- LEFT -->
+
+        <div class="toolbar-left">
+
+            <a
+                href="/dashboard"
+                class="back-dashboard-btn"
+            >
+                ← Dashboard
+            </a>
+
+
+            <input
+                type="text"
+                id="project-name"
+                placeholder="Tên dự án"
+                value="Bản đồ mới"
+            >
+
+        </div>
+
+
+
+        <!-- CENTER -->
+
+        <div class="toolbar-center">
+
+
+            <label>
+
+                Font
+
+                <select id="font-family">
+
+                    <option value="Arial">
+                        Arial
+                    </option>
+
+                    <option value="Times New Roman">
+                        Times New Roman
+                    </option>
+
+                    <option value="Verdana">
+                        Verdana
+                    </option>
+
+                    <option value="Tahoma">
+                        Tahoma
+                    </option>
+
+                </select>
+
+            </label>
+
+
+
+            <label>
+
+                Size
+
+                <input
+                    type="number"
+                    id="font-size"
+                    value="20"
+                    min="8"
+                    max="150"
+                >
+
+            </label>
+
+
+
+            <label>
+
+                Board W
+
+                <input
+                    type="number"
+                    id="board-width"
+                    value="1200"
+                    min="300"
+                >
+
+            </label>
+
+
+
+            <label>
+
+                Board H
+
+                <input
+                    type="number"
+                    id="board-height"
+                    value="800"
+                    min="300"
+                >
+
+            </label>
+
+
+
+            <button
+                type="button"
+                id="resize-board-btn"
+            >
+                Resize
+            </button>
+
+
+
+            <!-- ZOOM -->
+
+            <div class="zoom-controls">
+
+                <button
+                    type="button"
+                    id="zoom-out-btn"
+                    title="Thu nhỏ"
+                >
+                    −
+                </button>
+
+
+                <span id="zoom-display">
+                    100%
+                </span>
+
+
+                <button
+                    type="button"
+                    id="zoom-in-btn"
+                    title="Phóng to"
+                >
+                    +
+                </button>
+
+
+                <button
+                    type="button"
+                    id="reset-zoom-btn"
+                    title="Đặt lại Zoom"
+                >
+                    ⟳
+                </button>
+
+            </div>
+
+
+        </div>
+
+
+
+        <!-- RIGHT -->
+
+        <div class="toolbar-right">
+
+
+            <button
+                type="button"
+                id="delete-object-btn"
+                class="danger-btn"
+            >
+                Xóa
+            </button>
+
+
+            <button
+                type="button"
+                id="clear-board-btn"
+                class="danger-btn"
+            >
+                Xóa tất cả
+            </button>
+
+
+            <button
+                type="button"
+                id="undo-btn"
+                title="Hoàn tác (Ctrl + Z)"
+            >
+                ↶ Undo
+            </button>
+
+
+            <button
+                type="button"
+                id="redo-btn"
+                title="Làm lại (Ctrl + Y)"
+            >
+                ↷ Redo
+            </button>
+
+
+            <button
+                type="button"
+                id="save-project-btn"
+                class="save-project-btn"
+            >
+                Lưu dự án
+            </button>
+
+
+        </div>
+
+
+    </header>
+
+
+
+    <!-- =========================================
+         MAIN EDITOR
+    ========================================== -->
+
+    <div class="library-editor">
+
+
+        <!-- =====================================
+             LEFT SIDEBAR
+        ====================================== -->
+
+        <aside class="object-library">
+
+
+            <!-- FLOORS -->
+
+            <section class="floors-panel">
+
+                <div class="sidebar-section-title">
+
+                    <h2>
+                        Các tầng
+                    </h2>
+
+
+                    <button
+                        type="button"
+                        id="add-floor-btn"
+                    >
+                        + Thêm
+                    </button>
+
+                </div>
+
+
+                <div
+                    id="floor-list"
+                    class="floor-list"
+                >
+                </div>
+
+            </section>
+
+
+
+            <hr>
+
+
+
+            <!-- FURNITURE -->
+
+            <section class="furniture-panel">
+
+                <h2>
+                    Nội thất
+                </h2>
+
+
+                <p>
+                    Chọn nội thất để thêm vào bản đồ
+                </p>
+
+
+                <div class="object-list">
+
+
+                    <!-- BOOKSHELF -->
+
+                    <button
+                        type="button"
+                        class="library-object"
+                        data-object="bookshelf"
+                    >
+
+                        <div
+                            class="furniture-preview bookshelf-preview"
+                        >
+
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+
+                        </div>
+
+
+                        <span class="furniture-name">
+                            Kệ sách
+                        </span>
+
+                    </button>
+
+
+
+                    <!-- TABLE -->
+
+                    <button
+                        type="button"
+                        class="library-object"
+                        data-object="table"
+                    >
+
+                        <div
+                            class="furniture-preview table-preview"
+                        >
+                        </div>
+
+
+                        <span class="furniture-name">
+                            Bàn
+                        </span>
+
+                    </button>
+
+
+
+                    <!-- CHAIR -->
+
+                    <button
+                        type="button"
+                        class="library-object"
+                        data-object="chair"
+                    >
+
+                        <div
+                            class="furniture-preview chair-preview"
+                        >
+
+                            <div class="chair-back"></div>
+
+                            <div class="chair-seat"></div>
+
+                        </div>
+
+
+                        <span class="furniture-name">
+                            Ghế
+                        </span>
+
+                    </button>
+
+
+
+                    <!-- COMPUTER -->
+
+                    <button
+                        type="button"
+                        class="library-object"
+                        data-object="computer"
+                    >
+
+                        <div
+                            class="furniture-preview computer-preview"
+                        >
+
+                            <div class="monitor"></div>
+
+                            <div class="computer-stand"></div>
+
+                            <div class="computer-base"></div>
+
+                        </div>
+
+
+                        <span class="furniture-name">
+                            Máy tính
+                        </span>
+
+                    </button>
+
+
+
+                    <!-- DOOR -->
+
+                    <button
+                        type="button"
+                        class="library-object"
+                        data-object="door"
+                    >
+
+                        <div
+                            class="furniture-preview door-preview"
+                        >
+
+                            <div class="door-line"></div>
+
+                            <div class="door-swing"></div>
+
+                        </div>
+
+
+                        <span class="furniture-name">
+                            Cửa
+                        </span>
+
+                    </button>
+
+
+
+                    <!-- WINDOW -->
+
+                    <button
+                        type="button"
+                        class="library-object"
+                        data-object="window"
+                    >
+
+                        <div
+                            class="furniture-preview window-preview"
+                        >
+
+                            <div></div>
+                            <div></div>
+                            <div></div>
+
+                        </div>
+
+
+                        <span class="furniture-name">
+                            Cửa sổ
+                        </span>
+
+                    </button>
+
+
+
+                    <!-- ACCOUNTING DESK -->
+                    <button
+                        type="button"
+                        class="library-object"
+                        data-object="accountingDesk"
+                    >
+                        <div class="furniture-preview accounting-desk-preview">
+                            <div class="accounting-screen"></div>
+                            <div class="accounting-keyboard"></div>
+                            <div class="accounting-drawer"></div>
+                        </div>
+                        <span class="furniture-name">Bàn kế toán</span>
+                    </button>
+
+                    <!-- SQUARE PLANT -->
+                    <button
+                        type="button"
+                        class="library-object"
+                        data-object="squarePlant"
+                    >
+                        <div class="furniture-preview plant-preview square-plant-preview">
+                            <div class="plant-leaves"></div>
+                            <div class="plant-pot square-pot"></div>
+                        </div>
+                        <span class="furniture-name">Chậu cây vuông</span>
+                    </button>
+
+                    <!-- ROUND PLANT -->
+                    <button
+                        type="button"
+                        class="library-object"
+                        data-object="roundPlant"
+                    >
+                        <div class="furniture-preview plant-preview round-plant-preview">
+                            <div class="plant-leaves"></div>
+                            <div class="plant-pot round-pot"></div>
+                        </div>
+                        <span class="furniture-name">Chậu cây tròn</span>
+                    </button>
+
+                    <!-- FREE RECTANGLE -->
+                    <button
+                        type="button"
+                        class="library-object"
+                        data-object="freeRectangle"
+                    >
+                        <div class="furniture-preview free-shape-preview rectangle-shape-preview"></div>
+                        <span class="furniture-name">Hình chữ nhật</span>
+                    </button>
+
+                    <!-- FREE CIRCLE -->
+                    <button
+                        type="button"
+                        class="library-object"
+                        data-object="freeCircle"
+                    >
+                        <div class="furniture-preview free-shape-preview circle-shape-preview"></div>
+                        <span class="furniture-name">Hình tròn</span>
+                    </button>
+
+                    <!-- FREE TRIANGLE -->
+                    <button
+                        type="button"
+                        class="library-object"
+                        data-object="freeTriangle"
+                    >
+                        <div class="furniture-preview free-shape-preview triangle-shape-preview"></div>
+                        <span class="furniture-name">Hình tam giác</span>
+                    </button>
+
+                    <!-- FREE ELLIPSE -->
+                    <button
+                        type="button"
+                        class="library-object"
+                        data-object="freeEllipse"
+                    >
+                        <div class="furniture-preview free-shape-preview ellipse-shape-preview"></div>
+                        <span class="furniture-name">Hình elip</span>
+                    </button>
+
+                    <!-- TEXT -->
+
+                    <button
+                        type="button"
+                        class="library-object"
+                        data-object="text"
+                    >
+
+                        <div class="text-preview">
+                            T
+                        </div>
+
+
+                        <span class="furniture-name">
+                            Thêm chữ
+                        </span>
+
+                    </button>
+
+
+                </div>
+
+            </section>
+
+
+        </aside>
+
+
+
+        <!-- =====================================
+             CANVAS AREA
+        ====================================== -->
+
+        <main class="canvas-area">
+
+
+            <div
+                class="canvas-viewport"
+                id="canvas-viewport"
+            >
+
+
+                <div
+                    class="canvas-wrapper"
+                    id="canvas-wrapper"
+                >
+
+
+                    <canvas
+                        id="library-canvas"
+                        width="1200"
+                        height="800"
+                    >
+                    </canvas>
+
+
+                </div>
+
+
+            </div>
+
+
+        </main>
+
+
+    </div>
+
+
+
+    <!-- =========================================
+         BOOKSHELF INFORMATION MODAL
+    ========================================== -->
+
+    <div
+        id="bookshelf-modal-overlay"
+        class="bookshelf-modal-overlay"
+    >
+
+
+        <div
+            class="bookshelf-modal"
+            role="dialog"
+            aria-modal="true"
+        >
+
+
+            <div class="bookshelf-modal-header">
+
+                <h2>
+                    📚 Thông tin tủ sách
+                </h2>
+
+
+                <button
+                    type="button"
+                    id="bookshelf-close-btn"
+                    class="bookshelf-close-btn"
+                >
+                    ×
+                </button>
+
+            </div>
+
+
+
+            <!-- TÊN TỦ -->
+
+            <div class="bookshelf-field">
+
+                <label for="bookshelf-name">
+                    Tên tủ
+                </label>
+
+
+                <input
+                    type="text"
+                    id="bookshelf-name"
+                    placeholder="Ví dụ: Tủ Văn học Việt Nam"
+                >
+
+            </div>
+
+
+
+            <!-- DANH SÁCH SẢN PHẨM -->
+
+            <div class="bookshelf-items-title">
+
+                <h3>
+                    Sách / sản phẩm trong tủ
+                </h3>
+
+
+                <button
+                    type="button"
+                    id="bookshelf-add-item-btn"
+                    class="bookshelf-add-item-btn"
+                >
+                    + Thêm sách / sản phẩm
+                </button>
+
+            </div>
+
+
+            <div
+                id="bookshelf-items"
+                class="bookshelf-items"
+            >
+            </div>
+
+
+
+            <!-- FOOTER -->
+
+            <div class="bookshelf-modal-footer">
+
+                <button
+                    type="button"
+                    id="bookshelf-cancel-btn"
+                    class="bookshelf-cancel-btn"
+                >
+                    Hủy
+                </button>
+
+
+                <button
+                    type="button"
+                    id="bookshelf-save-btn"
+                    class="bookshelf-save-btn"
+                >
+                    Lưu thông tin
+                </button>
+
+            </div>
+
+
+        </div>
+
+
+    </div>
+
+
+
+    <!-- =========================================
+         MAP JAVASCRIPT
+    ========================================== -->
+
+    <script src="map.js"></script>
+
+
+</body>
+
+</html>

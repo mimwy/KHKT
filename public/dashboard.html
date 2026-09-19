@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <h2 id="sidebar-username-title">...</h2>
+            <nav>
+                <ul>
+                    <li><button class="nav-btn active" data-tab="home">Trang chủ</button></li>
+                    <li><button class="nav-btn" data-tab="info">Thông tin</button></li>
+                    <li><button class="nav-btn" data-tab="edit">Map Library</button></li>
+                    <li><button class="nav-btn" data-tab="settings">Cài đặt</button></li>
+                </ul>
+            </nav>
+            <button id="logout-btn">Đăng xuất</button>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Tab Home -->
+            <section id="home" class="tab-content active">
+                <h1>Trang chủ</h1>
+                <p style="color: grey">Xin chào, <strong id="user-display-name">...</strong>!</p>
+                <div class="cards">
+                    <div class="card">
+                        <h3>Thông báo</h3>
+                        <p>Không có thông báo mới nào.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Hoạt động</h3>
+                        <p>Lần đăng nhập gần nhất: Hôm nay.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab Info -->
+            <section id="info" class="tab-content">
+                <h1>Thông tin cá nhân</h1>
+                <div class="info-group">
+                    <p><strong>Tên đăng nhập:</strong> <span id="info-username">...</span></p>
+                    <p><strong>Họ và tên:</strong> <span id="info-fullname">...</span></p>
+                    <p><strong>Email:</strong> <span id="info-email">...</span></p>
+                    <p><strong>Số điện thoại:</strong> <span id="info-phone">...</span></p>
+                </div>
+            </section>
+
+            <!-- Tab Edit / Library Management -->
+            <section id="edit" class="tab-content">
+                <h1>Quản lý Thư viện & Dự án</h1>
+
+                <div class="library-action-card">
+                    <div class="action-info">
+                        <h2>Map your library +</h2>
+                        <p>Tạo bản đồ thư viện mới và thiết lập không gian của riêng bạn.</p>
+                    </div>
+                    <a href="map.html" class="create-map-btn">+ Tạo bản đồ mới</a>
+                </div>
+
+                <div class="storage-container">
+                    <h2>Storage (Dự án đã tạo)</h2>
+                    <p class="sub-text">Danh sách các dự án thư viện bạn đã khởi tạo:</p>
+
+                    <div class="storage-container">
+    <h2>Storage (Dự án đã tạo)</h2>
+
+    <p class="sub-text">
+        Danh sách các dự án thư viện bạn đã khởi tạo:
+    </p>
+
+    <div id="project-list" class="project-grid">
+        <!-- Project sẽ được JavaScript tải từ Database -->
+    </div>
+
+    <div id="empty-project-message" class="empty-project-message">
+        <div class="empty-icon">📂</div>
+
+        <h3>Bạn chưa có dự án nào</h3>
+
+        <p>
+            Hãy tạo dự án đầu tiên để bắt đầu xây dựng
+            bản đồ thư viện của bạn.
+        </p>
+    </div>
+</div>
+            </section>
+
+            <!-- Tab Settings -->
+            <section id="settings" class="tab-content">
+                <h1>Cài đặt tài khoản</h1>
+                <div class="settings-card">
+                    <h3>Đổi mật khẩu</h3>
+                    <form id="change-pass-form">
+                        <div class="form-group">
+                            <label for="old-pass">Mật khẩu hiện tại:</label>
+                            <input type="password" id="old-pass" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="new-pass">Mật khẩu mới:</label>
+                            <input type="password" id="new-pass" required>
+                        </div>
+                        <button type="submit">Cập nhật mật khẩu</button>
+                    </form>
+                </div>
+
+                <div class="settings-card">
+                    <h3>Tùy chọn thông báo</h3>
+                    <div class="setting-option">
+                        <label><input type="checkbox" checked> Nhận thông báo qua Email</label>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

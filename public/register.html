@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng ký Tài khoản</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Bọc thêm thẻ auth-wrapper ở đây -->
+    <div class="auth-wrapper">
+        <div class="auth-container">
+            <!-- ĐƯA LOGO VÀO ĐÂY: Nằm ngay trên đầu nội dung chính -->
+            <div class="logo-wrapper">
+                <img src="DSLibrari.png" alt="logo web">
+            </div>
+            <h2>Đăng Ký</h2>
+            
+            <!-- Form đăng ký -->
+            <form action="/register" method="POST">
+                <div class="form-group">
+                    <label for="username">Tên đăng nhập:</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Mật khẩu:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit">Đăng Ký</button>
+            </form>
+            
+            <p>Đã có tài khoản? <a href="/login">Đăng nhập</a></p>
+        </div>
+    </div>
+</body>
+</html>
