@@ -1,5 +1,5 @@
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
+let sqlite3 = null;
 const { Pool } = require('pg');
 const PgSession = require('connect-pg-simple')(require('express-session'));
 const bcrypt = require('bcryptjs');
@@ -16,6 +16,10 @@ const PORT = process.env.PORT || 3000;
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const USE_POSTGRES = !!process.env.DATABASE_URL;
+
+if (!USE_POSTGRES) {
+    sqlite3 = require('sqlite3').verbose();
+}
 
 const SESSION_SECRET =
     process.env.SESSION_SECRET ||
