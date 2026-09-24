@@ -169,8 +169,15 @@ function hideLoading() {
 
 
 // ============================================================
-// ZOOM
+// ZOOM - KIỂU CANVA
 // ============================================================
+//
+// Zoom toàn bộ BOARD:
+// - Kích thước canvas + wrapper thay đổi theo zoom.
+// - Fabric viewport cũng scale cùng mức zoom.
+// - Zoom quanh vị trí con trỏ/tâm màn hình.
+// - Có mouse wheel zoom trên desktop.
+// - Hỗ trợ pinch zoom 2 ngón trên mobile.
 
 function updateZoomDisplay() {
     zoomDisplay.textContent =
@@ -178,19 +185,64 @@ function updateZoomDisplay() {
 }
 
 
-// ============================================================
-// APPLY WHOLE-BOARD ZOOM
-// ============================================================
-//
-// Quan trọng:
-// Không chỉ phóng to object bằng viewportTransform.
-// Ta đồng thời tăng kích thước canvas + canvas wrapper
-// theo zoom để TOÀN BỘ BOARD (nền + object) cùng lớn/nhỏ.
+function getBoardScrollLimits() {
+    return {
+        maxLeft:
+            Math.max(
+                0,
+                boardScroll.scrollWidth -
+                    boardScroll.clientWidth
+            ),
 
-function applyWholeBoardZoom(
-    translateX = 0,
-    translateY = 0
-) {
+        maxTop:
+            Math.max(
+                0,
+                boardScroll.scrollHeight -
+                    boardScroll.clientHeight
+            )
+    };
+}
+
+
+function clampScrollPosition() {
+    const limits =
+        getBoardScrollLimits();
+
+    boardScroll.scrollLeft =
+        Math.max(
+            0,
+            Math.min(
+                limits.maxLeft,
+                boardScroll.scrollLeft
+            )
+        );
+
+    boardScroll.scrollTop =
+        Math.max(
+            0,
+            Math.min(
+                limits.maxTop,
+                boardScroll.scrollTop
+            )
+        );
+}
+
+
+function centerBoardInViewport() {
+    const limits =
+        getBoardScrollLimits();
+
+    boardScroll.scrollLeft =
+        limits.maxLeft / 2;
+
+    boardScroll.scrollTop =
+        limits.maxTop / 2;
+}
+
+
+// Cập nhật kích thước hiển thị của board.
+// floor.width / floor.height luôn là kích thước GỐC.
+function applyWholeBoardZoom() {
     const floor =
         getCurrentFloor();
 
@@ -199,19 +251,16 @@ function applyWholeBoardZoom(
     }
 
     const baseWidth =
-        Number(floor.width) ||
-        1200;
+        Number(floor.width) || 1200;
 
     const baseHeight =
-        Number(floor.height) ||
-        800;
+        Number(floor.height) || 800;
 
     const displayWidth =
         Math.max(
             1,
             Math.round(
-                baseWidth *
-                currentZoom
+                baseWidth * currentZoom
             )
         );
 
@@ -219,24 +268,20 @@ function applyWholeBoardZoom(
         Math.max(
             1,
             Math.round(
-                baseHeight *
-                currentZoom
+                baseHeight * currentZoom
             )
         );
 
-    // Canvas DOM cũng phải lớn/nhỏ theo zoom.
+    // Board thật to/nhỏ theo zoom.
     canvas.setDimensions({
         width: displayWidth,
         height: displayHeight
     });
 
-    // Fabric tạo một wrapper quanh hai canvas (lower + upper).
-    // Đồng bộ kích thước wrapper để vùng board thực sự scale.
+    // Fabric wrapper chứa lowerCanvas + upperCanvas.
     const wrapper =
         canvas.wrapperEl ||
-        document.querySelector(
-            ".canvas-container"
-        );
+        canvas.getElement().parentElement;
 
     if (wrapper) {
         wrapper.style.width =
@@ -246,33 +291,26 @@ function applyWholeBoardZoom(
             displayHeight + "px";
     }
 
+    // Scale nội dung bên trong board đúng bằng currentZoom.
     canvas.setViewportTransform([
         currentZoom,
         0,
         0,
         currentZoom,
-        Number(translateX) || 0,
-        Number(translateY) || 0
+        0,
+        0
     ]);
 
     canvas.calcOffset();
     canvas.requestRenderAll();
-
     updateZoomDisplay();
 }
 
-
-// ============================================================
-// SET ZOOM
-// ============================================================
 
 function setZoom(
     value,
     centerPoint = null
 ) {
-    const oldZoom =
-        currentZoom;
-
     const newZoom =
         Math.max(
             MIN_ZOOM,
@@ -286,69 +324,75 @@ function setZoom(
         return;
     }
 
-    // Mặc định zoom quanh tâm vùng xem.
+    const oldZoom =
+        currentZoom;
+
+    if (Math.abs(newZoom - oldZoom) < 0.001) {
+        return;
+    }
+
+    // Mặc định zoom quanh tâm vùng đang nhìn.
     if (!centerPoint) {
         centerPoint = {
             x:
-                boardWrapper.clientWidth / 2,
+                boardScroll.clientWidth / 2,
+
             y:
-                boardWrapper.clientHeight / 2
+                boardScroll.clientHeight / 2
         };
     }
 
-    const oldVpt =
-        canvas.viewportTransform ||
-        [oldZoom, 0, 0, oldZoom, 0, 0];
+    // Tọa độ điểm đang nhìn trong board (đơn vị gốc, chưa zoom).
+    const contentX =
+        boardScroll.scrollLeft +
+        centerPoint.x;
 
-    const oldTranslateX =
-        Number(oldVpt[4]) || 0;
+    const contentY =
+        boardScroll.scrollTop +
+        centerPoint.y;
 
-    const oldTranslateY =
-        Number(oldVpt[5]) || 0;
-
-    // Tính điểm của board đang nằm dưới con trỏ/tâm.
     const boardPointX =
-        (centerPoint.x - oldTranslateX) /
-        (oldZoom || 1);
+        contentX / oldZoom;
 
     const boardPointY =
-        (centerPoint.y - oldTranslateY) /
-        (oldZoom || 1);
-
-    const newTranslateX =
-        centerPoint.x -
-        boardPointX * newZoom;
-
-    const newTranslateY =
-        centerPoint.y -
-        boardPointY * newZoom;
+        contentY / oldZoom;
 
     currentZoom =
         newZoom;
 
-    applyWholeBoardZoom(
-        newTranslateX,
-        newTranslateY
-    );
+    const floor =
+        getCurrentFloor();
+
+    if (floor) {
+        floor.zoom =
+            currentZoom;
+    }
+
+    applyWholeBoardZoom();
+
+    // Đưa đúng điểm cũ về lại dưới con trỏ.
+    boardScroll.scrollLeft =
+        boardPointX * currentZoom -
+        centerPoint.x;
+
+    boardScroll.scrollTop =
+        boardPointY * currentZoom -
+        centerPoint.y;
+
+    clampScrollPosition();
 }
 
 
 function zoomIn() {
     setZoom(
-        Math.min(
-            MAX_ZOOM,
-            currentZoom + ZOOM_STEP
-        )
+        currentZoom + ZOOM_STEP
     );
 }
 
 
 function zoomOut() {
     setZoom(
-        Math.max(
-            MIN_ZOOM,
-            currentZoom - ZOOM_STEP
-        )
+        currentZoom - ZOOM_STEP
     );
 }
 
@@ -356,10 +400,15 @@ function zoomOut() {
 function resetZoom() {
     currentZoom = 1;
 
-    applyWholeBoardZoom(
-        0,
-        0
-    );
+    const floor =
+        getCurrentFloor();
+
+    if (floor) {
+        floor.zoom = 1;
+    }
+
+    applyWholeBoardZoom();
+    centerBoardInViewport();
 }
 
 
@@ -374,22 +423,20 @@ function fitBoardToScreen() {
     const availableWidth =
         Math.max(
             100,
-            boardWrapper.clientWidth - 50
+            boardScroll.clientWidth - 50
         );
 
     const availableHeight =
         Math.max(
             100,
-            boardWrapper.clientHeight - 50
+            boardScroll.clientHeight - 50
         );
 
     const width =
-        Number(floor.width) ||
-        1200;
+        Number(floor.width) || 1200;
 
     const height =
-        Number(floor.height) ||
-        800;
+        Number(floor.height) || 800;
 
     const zoomX =
         availableWidth / width;
@@ -407,24 +454,11 @@ function fitBoardToScreen() {
             )
         );
 
-    const translateX =
-        Math.max(
-            0,
-            (boardWrapper.clientWidth -
-                width * currentZoom) / 2
-        );
+    floor.zoom =
+        currentZoom;
 
-    const translateY =
-        Math.max(
-            0,
-            (boardWrapper.clientHeight -
-                height * currentZoom) / 2
-        );
-
-    applyWholeBoardZoom(
-        translateX,
-        translateY
-    );
+    applyWholeBoardZoom();
+    centerBoardInViewport();
 }
 
 
@@ -854,157 +888,123 @@ canvas.on(
 
 
 // ============================================================
-// PAN BẢN ĐỒ
+// PAN BOARD - KIỂU CANVA
 // ============================================================
 //
-// Viewer là chế độ chỉ xem nên có thể cho người dùng
-// nhấn giữ + kéo để di chuyển toàn bộ góc nhìn của board.
-// Hỗ trợ:
-// - Desktop: kéo chuột trái hoặc chuột giữa
-// - Mobile / tablet: chạm + kéo một ngón tay
+// Viewer là chế độ chỉ xem nên người dùng có thể:
+// - Desktop: nhấn giữ chuột trái + kéo.
+// - Desktop: nhấn giữ chuột giữa + kéo.
+// - Mobile/tablet: chạm giữ một ngón + kéo.
 //
-// Khi chỉ click mà không kéo, thao tác click/double-click
-// trên tủ sách vẫn được giữ nguyên.
+// Điểm quan trọng:
+// Ta PAN bằng scrollLeft / scrollTop của board-scroll.
+// Như vậy người dùng đang di chuyển TOÀN BỘ BOARD trong vùng nhìn,
+// không phải di chuyển từng object.
+//
+// Nếu chỉ click/tap mà không kéo, click/double-click tủ sách
+// vẫn được giữ nguyên.
 
 let isPanning = false;
-
 let panPointerId = null;
-
 let panStartX = 0;
 let panStartY = 0;
-
+let panStartScrollLeft = 0;
+let panStartScrollTop = 0;
 let panMoved = false;
 
 const PAN_THRESHOLD = 5;
 
-
-// ------------------------------------------
-// Bắt đầu kéo
-// ------------------------------------------
-
-boardWrapper.addEventListener(
-    "pointerdown",
-    event => {
-
-        // Chỉ nhận:
-// - chuột trái / giữa
-// - touch
-// - pen
-        const isMouse =
-            event.pointerType === "mouse";
-
-        if (
-            isMouse &&
-            event.button !== 0 &&
-            event.button !== 1
-        ) {
-            return;
-        }
-
-        isPanning = true;
-
-        panPointerId =
-            event.pointerId;
-
-        panStartX =
-            event.clientX;
-
-        panStartY =
-            event.clientY;
-
-        panMoved = false;
-
-        boardWrapper.classList.add(
-            "is-panning"
-        );
-
-        boardWrapper.style.cursor =
-            "grabbing";
-
-        try {
-            boardWrapper.setPointerCapture(
-                event.pointerId
-            );
-        } catch (error) {
-            // Một số trình duyệt/mobile có thể không hỗ trợ
-            // pointer capture trong trường hợp này.
-        }
-
-        // Không preventDefault tại pointerdown để giữ click/tap
-        // và double-click tủ sách hoạt động trên mobile.
-    }
-);
+boardScroll.style.touchAction = "none";
+boardScroll.style.overflow = "auto";
+boardScroll.style.overscrollBehavior = "contain";
+boardScroll.style.userSelect = "none";
+boardScroll.style.webkitUserSelect = "none";
+boardScroll.style.cursor = "grab";
 
 
-// ------------------------------------------
-// Đang kéo
-// ------------------------------------------
-
-boardWrapper.addEventListener(
-    "pointermove",
-    event => {
-
-        if (
-            !isPanning ||
-            event.pointerId !== panPointerId
-        ) {
-            return;
-        }
-
-        const dx =
-            event.clientX -
-            panStartX;
-
-        const dy =
-            event.clientY -
-            panStartY;
-
-        if (
-            Math.abs(dx) >= PAN_THRESHOLD ||
-            Math.abs(dy) >= PAN_THRESHOLD
-        ) {
-            panMoved = true;
-        }
-
-        if (!panMoved) {
-            return;
-        }
-
-        const vpt =
-            canvas.viewportTransform;
-
-        // Di chuyển góc nhìn của board.
-        vpt[4] += dx;
-        vpt[5] += dy;
-
-        canvas.requestRenderAll();
-
-        panStartX =
-            event.clientX;
-
-        panStartY =
-            event.clientY;
-
-        // Ngăn trang web cuộn theo ngón tay
-        // khi người dùng đang kéo board.
-        if (
-            event.pointerType !== "mouse"
-        ) {
-            event.preventDefault();
-        }
-    }
-);
-
-
-// ------------------------------------------
-// Kết thúc kéo
-// ------------------------------------------
-
-function stopBoardPan(event) {
+function startBoardPan(event) {
+    const isMouse =
+        event.pointerType === "mouse";
 
     if (
-        !isPanning
+        isMouse &&
+        event.button !== 0 &&
+        event.button !== 1
     ) {
+        return;
+    }
+
+    // Không bắt đầu pan nếu không có vùng scroll thực tế.
+    const limits =
+        getBoardScrollLimits();
+
+    if (
+        limits.maxLeft <= 0 &&
+        limits.maxTop <= 0
+    ) {
+        return;
+    }
+
+    isPanning = true;
+    panPointerId = event.pointerId;
+    panStartX = event.clientX;
+    panStartY = event.clientY;
+    panStartScrollLeft = boardScroll.scrollLeft;
+    panStartScrollTop = boardScroll.scrollTop;
+    panMoved = false;
+
+    boardScroll.style.cursor = "grabbing";
+
+    // Không dùng pointer capture ở đây để không chặn
+    // click / double-click của Fabric trên các đồ vật.
+}
+
+
+function moveBoardPan(event) {
+    if (
+        !isPanning ||
+        event.pointerId !== panPointerId
+    ) {
+        return;
+    }
+
+    const dx =
+        event.clientX - panStartX;
+
+    const dy =
+        event.clientY - panStartY;
+
+    if (
+        Math.abs(dx) >= PAN_THRESHOLD ||
+        Math.abs(dy) >= PAN_THRESHOLD
+    ) {
+        panMoved = true;
+    }
+
+    if (!panMoved) {
+        return;
+    }
+
+    boardScroll.scrollLeft =
+        panStartScrollLeft - dx;
+
+    boardScroll.scrollTop =
+        panStartScrollTop - dy;
+
+    clampScrollPosition();
+
+    // Touch/pen: giữ thao tác nằm trong board,
+    // không để trang web cuộn theo ngón tay.
+    if (
+        event.pointerType !== "mouse"
+    ) {
+        event.preventDefault();
+    }
+}
+
+
+function stopBoardPan(event) {
+    if (!isPanning) {
         return;
     }
 
@@ -1017,187 +1017,56 @@ function stopBoardPan(event) {
     }
 
     isPanning = false;
-
-    boardWrapper.classList.remove(
-        "is-panning"
-    );
-
-    boardWrapper.style.cursor =
-        "grab";
-
-    try {
-
-        if (
-            panPointerId !== null
-        ) {
-            boardWrapper.releasePointerCapture(
-                panPointerId
-            );
-        }
-
-    } catch (error) {
-        // Bỏ qua nếu pointer capture đã tự kết thúc.
-    }
-
     panPointerId = null;
+    boardScroll.style.cursor = "grab";
+
+    // Không cần release pointer capture vì pan dùng
+    // pointermove/pointerup ở mức document.
 }
 
-boardWrapper.addEventListener(
+
+boardScroll.addEventListener(
+    "pointerdown",
+    startBoardPan
+);
+
+document.addEventListener(
+    "pointermove",
+    moveBoardPan,
+    { passive: false }
+);
+
+document.addEventListener(
     "pointerup",
     stopBoardPan
 );
 
-boardWrapper.addEventListener(
+document.addEventListener(
     "pointercancel",
     stopBoardPan
 );
 
-boardWrapper.addEventListener(
-    "lostpointercapture",
-    () => {
-        isPanning = false;
-
-        boardWrapper.classList.remove(
-            "is-panning"
-        );
-
-        boardWrapper.style.cursor =
-            "grab";
-
-        panPointerId = null;
-    }
-);
-
-
-// ------------------------------------------
-// Mouse middle: giữ chức năng cũ
-// ------------------------------------------
-
-canvas.on(
-    "mouse:down",
-    event => {
-
-        if (
-            event.e &&
-            event.e.button === 1
-        ) {
-
-            isPanning = true;
-
-            panPointerId = null;
-
-            panStartX =
-                event.e.clientX;
-
-            panStartY =
-                event.e.clientY;
-
-            panMoved = false;
-
-            canvas.defaultCursor =
-                "grabbing";
-        }
-    }
-);
-
-canvas.on(
-    "mouse:move",
-    event => {
-
-        if (!isPanning) {
-            return;
-        }
-
-        // Pointer pan đang xử lý chuột trái / touch.
-        if (
-            panPointerId !== null
-        ) {
-            return;
-        }
-
-        const e =
-            event.e;
-
-        const dx =
-            e.clientX -
-            panStartX;
-
-        const dy =
-            e.clientY -
-            panStartY;
-
-        const vpt =
-            canvas.viewportTransform;
-
-        vpt[4] += dx;
-        vpt[5] += dy;
-
-        canvas.requestRenderAll();
-
-        panStartX =
-            e.clientX;
-
-        panStartY =
-            e.clientY;
-    }
-);
-
-canvas.on(
-    "mouse:up",
-    () => {
-
-        if (
-            panPointerId !== null
-        ) {
-            return;
-        }
-
-        isPanning = false;
-
-        canvas.defaultCursor =
-            "default";
-    }
-);
-
 
 // ============================================================
-// TOUCH / CURSOR
+// MOUSE WHEEL ZOOM - KIỂU CANVA
 // ============================================================
+//
+// Không bắt buộc Ctrl.
+// Zoom quanh đúng vị trí con trỏ.
 
-// Cho phép dùng một ngón tay kéo board trên mobile.
-// Khi không kéo board, double-click / click tủ sách vẫn hoạt động.
-boardWrapper.style.touchAction = "none";
-boardWrapper.style.cursor = "grab";
-
-
-// ============================================================
-// MOUSE WHEEL ZOOM
-
-// ============================================================
-
-boardWrapper.addEventListener(
+boardScroll.addEventListener(
     "wheel",
     event => {
-        if (
-            !event.ctrlKey &&
-            !event.metaKey
-        ) {
-            return;
-        }
-
         event.preventDefault();
 
         const rect =
-            boardWrapper.getBoundingClientRect();
+            boardScroll.getBoundingClientRect();
 
         const point = {
             x:
-                event.clientX -
-                rect.left,
-
+                event.clientX - rect.left,
             y:
-                event.clientY -
-                rect.top
+                event.clientY - rect.top
         };
 
         const direction =
@@ -1215,6 +1084,135 @@ boardWrapper.addEventListener(
     {
         passive: false
     }
+);
+
+
+// ============================================================
+// PINCH ZOOM - MOBILE
+// ============================================================
+
+let pinchStartDistance = null;
+let pinchStartZoom = 1;
+let pinchCenter = null;
+
+function getTouchDistance(touchA, touchB) {
+    const dx =
+        touchA.clientX - touchB.clientX;
+
+    const dy =
+        touchA.clientY - touchB.clientY;
+
+    return Math.hypot(dx, dy);
+}
+
+
+function getTouchCenter(touchA, touchB, rect) {
+    return {
+        x:
+            (
+                (touchA.clientX + touchB.clientX) /
+                2
+            ) - rect.left,
+
+        y:
+            (
+                (touchA.clientY + touchB.clientY) /
+                2
+            ) - rect.top
+    };
+}
+
+
+boardScroll.addEventListener(
+    "touchstart",
+    event => {
+        if (event.touches.length !== 2) {
+            return;
+        }
+
+        // Khi chuyển sang 2 ngón, dừng pan một ngón.
+        isPanning = false;
+        panPointerId = null;
+        boardScroll.style.cursor = "grab";
+
+        event.preventDefault();
+
+        const rect =
+            boardScroll.getBoundingClientRect();
+
+        pinchStartDistance =
+            getTouchDistance(
+                event.touches[0],
+                event.touches[1]
+            );
+
+        pinchStartZoom =
+            currentZoom;
+
+        pinchCenter =
+            getTouchCenter(
+                event.touches[0],
+                event.touches[1],
+                rect
+            );
+    },
+    {
+        passive: false
+    }
+);
+
+
+boardScroll.addEventListener(
+    "touchmove",
+    event => {
+        if (
+            event.touches.length !== 2 ||
+            pinchStartDistance === null
+        ) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const distance =
+            getTouchDistance(
+                event.touches[0],
+                event.touches[1]
+            );
+
+        if (distance <= 0) {
+            return;
+        }
+
+        const scale =
+            distance /
+            pinchStartDistance;
+
+        setZoom(
+            pinchStartZoom * scale,
+            pinchCenter
+        );
+    },
+    {
+        passive: false
+    }
+);
+
+
+function stopPinchZoom() {
+    pinchStartDistance = null;
+    pinchStartZoom = currentZoom;
+    pinchCenter = null;
+}
+
+boardScroll.addEventListener(
+    "touchend",
+    stopPinchZoom
+);
+
+boardScroll.addEventListener(
+    "touchcancel",
+    stopPinchZoom
 );
 
 
