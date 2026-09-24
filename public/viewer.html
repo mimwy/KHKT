@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Map Your Library - Xem bản đồ</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/fabric@latest/dist/index.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #eef2f7;
+            color: #1f2937;
+            overflow: hidden;
+        }
+
+        .viewer-header {
+            height: 64px;
+            background: #ffffff;
+            border-bottom: 1px solid #dbe1e8;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 0 18px;
+            position: relative;
+            z-index: 20;
+        }
+
+        .viewer-title-area {
+            min-width: 220px;
+            flex: 1;
+        }
+
+        .viewer-title {
+            margin: 0;
+            font-size: 19px;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .viewer-subtitle {
+            margin-top: 3px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .viewer-controls {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .viewer-btn {
+            border: 1px solid #cfd6df;
+            background: #fff;
+            border-radius: 8px;
+            padding: 8px 11px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .viewer-btn:hover {
+            background: #f3f6fa;
+        }
+
+        .zoom-label {
+            min-width: 58px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .viewer-main {
+            height: calc(100vh - 64px);
+            display: flex;
+            min-height: 0;
+        }
+
+        .floor-sidebar {
+            width: 220px;
+            background: #ffffff;
+            border-right: 1px solid #dbe1e8;
+            padding: 16px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .floor-sidebar h2 {
+            margin: 0 0 12px;
+            font-size: 15px;
+        }
+
+        .floor-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .floor-btn {
+            width: 100%;
+            text-align: left;
+            border: 1px solid #d5dbe3;
+            background: #fff;
+            border-radius: 8px;
+            padding: 10px 12px;
+            cursor: pointer;
+        }
+
+        .floor-btn:hover {
+            background: #f4f7fb;
+        }
+
+        .floor-btn.active {
+            background: #e9f2ff;
+            border-color: #6aa0e8;
+            font-weight: 700;
+        }
+
+        .board-wrapper {
+            flex: 1;
+            min-width: 0;
+            min-height: 0;
+            position: relative;
+            overflow: hidden;
+            background:
+                linear-gradient(
+                    45deg,
+                    #e6eaf0 25%,
+                    transparent 25%
+                ),
+                linear-gradient(
+                    -45deg,
+                    #e6eaf0 25%,
+                    transparent 25%
+                ),
+                linear-gradient(
+                    45deg,
+                    transparent 75%,
+                    #e6eaf0 75%
+                ),
+                linear-gradient(
+                    -45deg,
+                    transparent 75%,
+                    #e6eaf0 75%
+                );
+            background-size: 24px 24px;
+            background-position:
+                0 0,
+                0 12px,
+                12px -12px,
+                -12px 0;
+        }
+
+        .board-scroll {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+        }
+
+        .canvas-container {
+            position: absolute !important;
+            left: 0;
+            top: 0;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .viewer-hint {
+            position: absolute;
+            left: 16px;
+            bottom: 16px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.94);
+            border: 1px solid #d9dfe7;
+            border-radius: 9px;
+            padding: 9px 12px;
+            font-size: 12px;
+            color: #596273;
+            pointer-events: none;
+        }
+
+        .loading-overlay,
+        .error-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            background: rgba(245, 247, 250, 0.96);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .loading-card,
+        .error-card {
+            background: #fff;
+            border: 1px solid #d9dfe7;
+            border-radius: 14px;
+            padding: 24px;
+            max-width: 460px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+        }
+
+        .error-card h2 {
+            margin-top: 0;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .books-modal-overlay,
+        .share-modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            background: rgba(15, 23, 42, 0.55);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+        }
+
+        .books-modal-overlay.show,
+        .share-modal-overlay.show {
+            display: flex;
+        }
+
+        .books-modal {
+            width: min(760px, 100%);
+            max-height: min(720px, 90vh);
+            background: #fff;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 20px 70px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 16px 18px;
+            border-bottom: 1px solid #e4e8ee;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .modal-close {
+            border: 0;
+            background: transparent;
+            font-size: 25px;
+            cursor: pointer;
+            color: #6b7280;
+        }
+
+        .books-modal-body {
+            padding: 18px;
+            overflow-y: auto;
+        }
+
+        .book-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+            gap: 12px;
+        }
+
+        .book-card {
+            border: 1px solid #dce2e9;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        .book-image {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            background: #f2f4f7;
+            display: block;
+        }
+
+        .book-image.empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #8a93a1;
+            font-size: 12px;
+        }
+
+        .book-content {
+            padding: 11px;
+        }
+
+        .book-name {
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .book-description {
+            color: #667085;
+            font-size: 13px;
+            line-height: 1.45;
+            white-space: pre-wrap;
+        }
+
+        .empty-books {
+            text-align: center;
+            padding: 36px 12px;
+            color: #7a8492;
+        }
+
+        .share-box {
+            width: min(520px, 100%);
+            background: #fff;
+            border-radius: 14px;
+            padding: 22px;
+        }
+
+        #share-qr {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .share-url {
+            width: 100%;
+            border: 1px solid #d6dce5;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 760px) {
+            .floor-sidebar {
+                width: 150px;
+            }
+
+            .viewer-title-area {
+                min-width: 100px;
+            }
+
+            .viewer-subtitle {
+                display: none;
+            }
+
+            .viewer-controls .desktop-only {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header class="viewer-header">
+
+        <div class="viewer-title-area">
+            <h1
+                id="viewer-project-name"
+                class="viewer-title"
+            >
+                Đang tải bản đồ...
+            </h1>
+
+            <div class="viewer-subtitle">
+                Chế độ xem — không thể chỉnh sửa
+            </div>
+        </div>
+
+        <div class="viewer-controls">
+
+            <button
+                type="button"
+                class="viewer-btn"
+                id="zoom-out-btn"
+            >
+                −
+            </button>
+
+            <div
+                class="zoom-label"
+                id="zoom-display"
+            >
+                100%
+            </div>
+
+            <button
+                type="button"
+                class="viewer-btn"
+                id="zoom-in-btn"
+            >
+                +
+            </button>
+
+            <button
+                type="button"
+                class="viewer-btn desktop-only"
+                id="zoom-reset-btn"
+            >
+                100%
+            </button>
+
+            <button
+                type="button"
+                class="viewer-btn"
+                id="fit-board-btn"
+            >
+                Vừa khung
+            </button>
+
+        </div>
+
+    </header>
+
+
+    <main class="viewer-main">
+
+        <aside class="floor-sidebar">
+
+            <h2>Các tầng</h2>
+
+            <div
+                id="floor-list"
+                class="floor-list"
+            ></div>
+
+        </aside>
+
+
+        <section
+            id="board-wrapper"
+            class="board-wrapper"
+        >
+
+            <div
+                id="board-scroll"
+                class="board-scroll"
+            >
+                <canvas
+                    id="library-canvas"
+                ></canvas>
+            </div>
+
+            <div class="viewer-hint">
+                Kéo để xem khu vực khác · Cuộn chuột để di chuyển ·
+                Double-click tủ sách để xem sách
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <div
+        id="loading-overlay"
+        class="loading-overlay"
+    >
+        <div class="loading-card">
+            <h2>Đang tải bản đồ...</h2>
+            <p>Vui lòng chờ một chút.</p>
+        </div>
+    </div>
+
+
+    <div
+        id="error-overlay"
+        class="error-overlay hidden"
+    >
+        <div class="error-card">
+            <h2>Không thể mở bản đồ</h2>
+
+            <p id="error-message">
+                Link không hợp lệ hoặc dự án đã bị hủy chia sẻ.
+            </p>
+        </div>
+    </div>
+
+
+    <div
+        id="books-modal-overlay"
+        class="books-modal-overlay"
+    >
+
+        <div class="books-modal">
+
+            <div class="modal-header">
+
+                <h2 id="books-modal-title">
+                    Tủ sách
+                </h2>
+
+                <button
+                    type="button"
+                    class="modal-close"
+                    id="books-modal-close"
+                >
+                    ×
+                </button>
+
+            </div>
+
+            <div class="books-modal-body">
+
+                <div
+                    id="book-list"
+                    class="book-list"
+                ></div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <script src="viewer.js"></script>
+
+</body>
+</html>

@@ -22,6 +22,11 @@
         src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"
     ></script>
 
+    <!-- QRCode.js -->
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
+    ></script>
+
 
     <!-- =========================================
          BOOKSHELF MODAL STYLE
@@ -554,6 +559,34 @@
 
         #undo-btn:disabled, #redo-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+        /* =========================================
+           SHARE PROJECT MODAL
+        ========================================== */
+        .share-modal-overlay {
+            position: fixed; inset: 0; background: rgba(15,23,42,.55);
+            display: none; align-items: center; justify-content: center;
+            z-index: 10000; padding: 20px;
+        }
+        .share-modal-overlay.show { display:flex; }
+        .share-modal {
+            width:min(620px,95vw); background:#fff; border-radius:16px;
+            box-shadow:0 25px 70px rgba(15,23,42,.3); padding:24px;
+        }
+        .share-modal-header { display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid #e2e8f0; padding-bottom:14px; }
+        .share-modal-header h2 { margin:0; color:#0f172a; font-size:21px; }
+        .share-modal-close-btn { border:0; background:#f1f5f9; color:#334155; width:36px; height:36px; border-radius:8px; font-size:22px; cursor:pointer; }
+        .share-loading { padding:28px 5px; text-align:center; color:#64748b; }
+        .share-content { padding-top:18px; }
+        .share-content p { color:#475569; line-height:1.5; }
+        .share-url-row { display:flex; gap:8px; margin-top:14px; }
+        .share-url-row input { flex:1; min-width:0; box-sizing:border-box; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; }
+        .share-url-row button, .share-modal-footer button { border:0; background:#0f172a; color:#fff; padding:10px 15px; border-radius:8px; cursor:pointer; }
+        .share-qr-code { display:flex; justify-content:center; align-items:center; min-height:190px; margin:20px 0; }
+        .share-unshare-btn { border:0; background:#fee2e2; color:#b91c1c; padding:9px 13px; border-radius:8px; cursor:pointer; }
+        .share-modal-footer { display:flex; justify-content:flex-end; border-top:1px solid #e2e8f0; padding-top:15px; margin-top:18px; }
+        @media (max-width:600px) { .share-url-row { flex-direction:column; } }
+
+
         @media (max-width: 600px) {
 
             .bookshelf-product-grid {
@@ -787,6 +820,14 @@
                 class="save-project-btn"
             >
                 Lưu dự án
+            </button>
+
+            <button
+                type="button"
+                id="share-project-btn"
+                class="save-project-btn share-project-btn"
+            >
+                🔗 Chia sẻ
             </button>
 
 
@@ -1287,6 +1328,34 @@
     </div>
 
 
+
+    <!-- =========================================
+         SHARE PROJECT MODAL
+    ========================================== -->
+
+    <div id="share-modal-overlay" class="share-modal-overlay">
+        <div class="share-modal" role="dialog" aria-modal="true">
+            <div class="share-modal-header">
+                <h2>🔗 Chia sẻ dự án</h2>
+                <button type="button" id="share-modal-close-btn" class="share-modal-close-btn">×</button>
+            </div>
+
+            <div id="share-loading" class="share-loading">Đang tạo liên kết chia sẻ...</div>
+            <div id="share-content" class="share-content" style="display:none;">
+                <p id="share-modal-message">Ai có liên kết đều có thể xem bản đồ này ở chế độ chỉ đọc.</p>
+                <div class="share-url-row">
+                    <input type="text" id="share-url-input" readonly>
+                    <button type="button" id="copy-share-url-btn">Sao chép</button>
+                </div>
+                <div id="share-qr-code" class="share-qr-code"></div>
+                <button type="button" id="unshare-project-btn" class="share-unshare-btn">Hủy chia sẻ</button>
+            </div>
+
+            <div class="share-modal-footer">
+                <button type="button" id="share-modal-done-btn">Đóng</button>
+            </div>
+        </div>
+    </div>
 
     <!-- =========================================
          MAP JAVASCRIPT

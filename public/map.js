@@ -40,6 +40,39 @@ const boardHeightInput =
 const saveProjectBtn =
     document.getElementById("save-project-btn");
 
+const shareProjectBtn =
+    document.getElementById("share-project-btn");
+
+const shareModalOverlay =
+    document.getElementById("share-modal-overlay");
+
+const shareModalCloseBtn =
+    document.getElementById("share-modal-close-btn");
+
+const shareModalDoneBtn =
+    document.getElementById("share-modal-done-btn");
+
+const shareModalMessage =
+    document.getElementById("share-modal-message");
+
+const shareLoading =
+    document.getElementById("share-loading");
+
+const shareContent =
+    document.getElementById("share-content");
+
+const shareUrlInput =
+    document.getElementById("share-url-input");
+
+const copyShareUrlBtn =
+    document.getElementById("copy-share-url-btn");
+
+const shareQrCode =
+    document.getElementById("share-qr-code");
+
+const unshareProjectBtn =
+    document.getElementById("unshare-project-btn");
+
 const projectNameInput =
     document.getElementById("project-name");
 
@@ -4045,6 +4078,115 @@ function saveProject() {
 
 
 // ==========================================
+// SHARE PROJECT
+// ==========================================
+
+function getCurrentProjectId() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("id");
+}
+
+function setShareLoading(isLoading, message = "Đang xử lý...") {
+    if (shareLoading) {
+        shareLoading.textContent = message;
+        shareLoading.style.display = isLoading ? "block" : "none";
+    }
+    if (shareContent) shareContent.style.display = isLoading ? "none" : "block";
+}
+
+function renderShareQRCode(url) {
+    if (!shareQrCode) return;
+    shareQrCode.innerHTML = "";
+    if (typeof QRCode === "undefined") {
+        shareQrCode.textContent = "Không thể tải QR Code.";
+        return;
+    }
+    new QRCode(shareQrCode, {
+        text: url, width: 190, height: 190, correctLevel: QRCode.CorrectLevel.M
+    });
+}
+
+function openShareModal() {
+    if (!shareModalOverlay) return;
+    shareModalOverlay.classList.add("show");
+    setShareLoading(true, "Đang tạo liên kết chia sẻ...");
+    shareProject();
+}
+
+function closeShareModal() {
+    if (shareModalOverlay) shareModalOverlay.classList.remove("show");
+}
+
+async function shareProject() {
+    const projectId = getCurrentProjectId();
+    if (!projectId) {
+        setShareLoading(false);
+        if (shareModalMessage) shareModalMessage.textContent = "Không tìm thấy ID dự án.";
+        return;
+    }
+    try {
+        const response = await fetch(`/api/projects/${projectId}/share`, {
+            method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || "Không thể tạo liên kết chia sẻ.");
+        if (shareUrlInput) shareUrlInput.value = data.share_url || "";
+        if (shareModalMessage) shareModalMessage.textContent = "Ai có liên kết đều có thể xem bản đồ ở chế độ chỉ đọc.";
+        renderShareQRCode(data.share_url);
+        setShareLoading(false);
+    } catch (error) {
+        console.error(error);
+        setShareLoading(false);
+        if (shareModalMessage) shareModalMessage.textContent = error.message || "Không thể tạo liên kết chia sẻ.";
+    }
+}
+
+async function copyShareUrl() {
+    const url = shareUrlInput ? shareUrlInput.value : "";
+    if (!url) return;
+    try {
+        await navigator.clipboard.writeText(url);
+        if (copyShareUrlBtn) {
+            const oldText = copyShareUrlBtn.textContent;
+            copyShareUrlBtn.textContent = "Đã sao chép";
+            setTimeout(() => copyShareUrlBtn.textContent = oldText, 1400);
+        }
+    } catch (error) {
+        if (shareUrlInput) { shareUrlInput.select(); document.execCommand("copy"); }
+    }
+}
+
+async function unshareProject() {
+    const projectId = getCurrentProjectId();
+    if (!projectId) return;
+    if (!confirm("Bạn có chắc muốn hủy liên kết chia sẻ hiện tại?")) return;
+    try {
+        const response = await fetch(`/api/projects/${projectId}/unshare`, {
+            method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || "Không thể hủy chia sẻ.");
+        if (shareUrlInput) shareUrlInput.value = "";
+        if (shareQrCode) shareQrCode.innerHTML = "";
+        if (shareModalMessage) shareModalMessage.textContent = "Đã hủy liên kết chia sẻ.";
+    } catch (error) {
+        alert(error.message || "Không thể hủy chia sẻ.");
+    }
+}
+
+if (shareProjectBtn) shareProjectBtn.addEventListener("click", openShareModal);
+if (shareModalCloseBtn) shareModalCloseBtn.addEventListener("click", closeShareModal);
+if (shareModalDoneBtn) shareModalDoneBtn.addEventListener("click", closeShareModal);
+if (copyShareUrlBtn) copyShareUrlBtn.addEventListener("click", copyShareUrl);
+if (unshareProjectBtn) unshareProjectBtn.addEventListener("click", unshareProject);
+if (shareModalOverlay) shareModalOverlay.addEventListener("click", event => { if (event.target === shareModalOverlay) closeShareModal(); });
+
+document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && shareModalOverlay && shareModalOverlay.classList.contains("show")) closeShareModal();
+});
+
+
+// ==========================================
 // SAVE BUTTON
 // ==========================================
 
@@ -4059,15 +4201,215 @@ if (saveProjectBtn) {
 
 
 // ==========================================
+// LOAD PROJECT FROM SERVER
+// ==========================================
+
+async function loadProjectFromServer() {
+
+    const params =
+        new URLSearchParams(
+            window.location.search
+        );
+
+
+    const projectId =
+        params.get("id");
+
+
+    if (!projectId) {
+
+        alert(
+            "Không tìm thấy ID dự án!"
+        );
+
+        return;
+
+    }
+
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/projects",
+                {
+                    credentials:
+                        "include"
+                }
+            );
+
+
+        const result =
+            await response.json();
+
+
+        if (
+            !response.ok ||
+            !result.success
+        ) {
+
+            throw new Error(
+                result.message ||
+                "Không thể tải danh sách dự án"
+            );
+
+        }
+
+
+        const project =
+            (result.projects || []).find(
+                item =>
+                    String(item.id) ===
+                    String(projectId)
+            );
+
+
+        if (!project) {
+
+            alert(
+                "Không tìm thấy dự án!"
+            );
+
+            return;
+
+        }
+
+
+        // Khôi phục tên dự án
+
+        if (projectNameInput) {
+
+            projectNameInput.value =
+                project.name || "";
+
+        }
+
+
+        // Nếu project chưa có dữ liệu bản đồ
+        // thì giữ nguyên dữ liệu mặc định
+
+        if (project.canvas_data) {
+
+            let savedData;
+
+
+            try {
+
+                savedData =
+                    typeof project.canvas_data === "string"
+                        ? JSON.parse(
+                            project.canvas_data
+                        )
+                        : project.canvas_data;
+
+            }
+
+            catch (error) {
+
+                console.error(
+                    "Lỗi đọc canvas_data:",
+                    error
+                );
+
+                alert(
+                    "Dữ liệu bản đồ của dự án bị lỗi!"
+                );
+
+                return;
+
+            }
+
+
+            // Khôi phục toàn bộ các tầng
+
+            if (
+                savedData &&
+                Array.isArray(
+                    savedData.floors
+                ) &&
+                savedData.floors.length > 0
+            ) {
+
+                floors =
+                    savedData.floors.map(
+                        (floor, index) => ({
+
+                            id:
+                                floor.id ??
+                                index + 1,
+
+                            name:
+                                floor.name ||
+                                `Tầng ${index + 1}`,
+
+                            width:
+                                Number(
+                                    floor.width
+                                ) || 1200,
+
+                            height:
+                                Number(
+                                    floor.height
+                                ) || 800,
+
+                            zoom:
+                                Number(
+                                    floor.zoom
+                                ) || 1,
+
+                            canvasData:
+                                floor.canvasData ||
+                                null
+
+                        })
+                    );
+
+            }
+
+        }
+
+
+        // Rất quan trọng:
+        // không để loadFloor() lưu
+        // dữ liệu mặc định lên tầng vừa tải
+
+        currentFloorId = null;
+
+
+        renderFloorList();
+
+
+        if (floors.length > 0) {
+
+            loadFloor(
+                floors[0].id
+            );
+
+        }
+
+
+        updateZoomDisplay();
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Lỗi tải project:",
+            error
+        );
+
+        alert(
+            "Không thể tải dự án từ server!"
+        );
+
+    }
+
+}
+
+
+// ==========================================
 // INITIALIZE
 // ==========================================
 
-renderFloorList();
-
-
-loadFloor(
-    currentFloorId
-);
-
-
-updateZoomDisplay();
+loadProjectFromServer();

@@ -1,3 +1,30 @@
+/*
+=============================================================
+MAP YOUR LIBRARY - SERVER.JS
+BẢN ĐÃ THÊM CHỨC NĂNG CHIA SẺ PROJECT
+=============================================================
+
+Dựa trên server.js hiện tại của bạn.
+
+Chức năng mới:
+1. Mỗi project có share_token.
+2. POST /api/projects/:id/share
+   -> tạo/lấy link chia sẻ.
+3. POST /api/projects/:id/unshare
+   -> hủy link chia sẻ.
+4. GET /api/shared-project/:token
+   -> người ngoài có thể lấy dữ liệu project bằng token.
+5. GET /view/:token
+   -> mở trang viewer.html.
+
+Lưu ý:
+- Viewer vẫn cần được tạo ở bước tiếp theo.
+- Link chỉ đọc ở tầng API public; API PUT/DELETE project vẫn yêu cầu
+  đăng nhập và kiểm tra user_id.
+- Database cũ được tự động migrate thêm share_token.
+=============================================================
+*/
+
 const express = require('express');
 let sqlite3 = null;
 const { Pool } = require('pg');
@@ -5,6 +32,7 @@ const PgSession = require('connect-pg-simple')(require('express-session'));
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const path = require('path');
+const crypto = require('crypto');
 
 const app = express();
 
@@ -82,10 +110,46 @@ function initSQLite() {
                 canvas_data TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                share_token TEXT,
 
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
         `);
+
+        // Thêm cột share_token cho database SQLite cũ nếu chưa có.
+        sqliteDB.all(`PRAGMA table_info(projects)`, (err, columns) => {
+            if (err) {
+                console.error('Lỗi kiểm tra cột projects:', err.message);
+                return;
+            }
+
+            const hasShareToken = columns.some(
+                column => column.name === 'share_token'
+            );
+
+            if (!hasShareToken) {
+                sqliteDB.run(
+                    `ALTER TABLE projects ADD COLUMN share_token TEXT`,
+                    (alterErr) => {
+                        if (alterErr) {
+                            console.error(
+                                'Lỗi thêm share_token vào SQLite:',
+                                alterErr.message
+                            );
+                        } else {
+                            console.log(
+                                'Đã thêm cột share_token vào SQLite.'
+                            );
+                        }
+                    }
+                );
+            }
+
+            sqliteDB.run(`
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_share_token
+                ON projects(share_token)
+            `);
+        });
     });
 }
 
@@ -125,8 +189,15 @@ async function initPostgres() {
                 name TEXT NOT NULL,
                 canvas_data TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                share_token TEXT UNIQUE
             )
+        `);
+
+        // Đảm bảo database PostgreSQL cũ cũng có cột share_token.
+        await pgPool.query(`
+            ALTER TABLE projects
+            ADD COLUMN IF NOT EXISTS share_token TEXT UNIQUE
         `);
 
         console.log('Đã kiểm tra/tạo bảng PostgreSQL.');
@@ -260,6 +331,26 @@ async function dbRun(query, params = []) {
     }
 
     return sqliteRun(query, params);
+}
+
+
+// =====================================================
+// SHARE TOKEN
+// =====================================================
+
+function generateShareToken() {
+    return crypto.randomBytes(24).toString('hex');
+}
+
+function getShareBaseUrl(req) {
+    const protocol =
+        req.headers['x-forwarded-proto'] ||
+        req.protocol ||
+        'http';
+
+    const host = req.get('host');
+
+    return `${protocol}://${host}`;
 }
 
 
@@ -945,6 +1036,222 @@ app.put('/api/projects/:id', async (req, res) => {
             message: 'Không thể lưu dự án'
         });
     }
+});
+
+
+// =====================================================
+// PROJECTS - CHIA SẺ
+// =====================================================
+
+app.post('/api/projects/:id/share', async (req, res) => {
+    if (!req.session || !req.session.user) {
+        return res.status(401).json({
+            success: false,
+            message: 'Chưa đăng nhập'
+        });
+    }
+
+    try {
+        const userQuery = sql(`
+            SELECT id
+            FROM users
+            WHERE username = ?
+        `);
+
+        const user = await dbGet(
+            userQuery,
+            [req.session.user]
+        );
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy người dùng'
+            });
+        }
+
+        const projectQuery = sql(`
+            SELECT id, name, share_token
+            FROM projects
+            WHERE id = ?
+            AND user_id = ?
+        `);
+
+        const project = await dbGet(
+            projectQuery,
+            [req.params.id, user.id]
+        );
+
+        if (!project) {
+            return res.status(404).json({
+                success: false,
+                message:
+                    'Không tìm thấy dự án hoặc bạn không có quyền chia sẻ'
+            });
+        }
+
+        let shareToken = project.share_token;
+
+        if (!shareToken) {
+            shareToken = generateShareToken();
+
+            const updateQuery = sql(`
+                UPDATE projects
+                SET share_token = ?
+                WHERE id = ?
+                AND user_id = ?
+            `);
+
+            await dbRun(updateQuery, [
+                shareToken,
+                req.params.id,
+                user.id
+            ]);
+        }
+
+        const shareUrl =
+            `${getShareBaseUrl(req)}/view/${shareToken}`;
+
+        res.json({
+            success: true,
+            share_token: shareToken,
+            share_url: shareUrl
+        });
+
+    } catch (err) {
+        console.error('Lỗi tạo link chia sẻ:', err);
+
+        res.status(500).json({
+            success: false,
+            message: 'Không thể tạo link chia sẻ'
+        });
+    }
+});
+
+
+// =====================================================
+// PROJECTS - HỦY CHIA SẺ
+// =====================================================
+
+app.post('/api/projects/:id/unshare', async (req, res) => {
+    if (!req.session || !req.session.user) {
+        return res.status(401).json({
+            success: false,
+            message: 'Chưa đăng nhập'
+        });
+    }
+
+    try {
+        const userQuery = sql(`
+            SELECT id
+            FROM users
+            WHERE username = ?
+        `);
+
+        const user = await dbGet(
+            userQuery,
+            [req.session.user]
+        );
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy người dùng'
+            });
+        }
+
+        const updateQuery = sql(`
+            UPDATE projects
+            SET share_token = NULL
+            WHERE id = ?
+            AND user_id = ?
+        `);
+
+        const result = await dbRun(
+            updateQuery,
+            [
+                req.params.id,
+                user.id
+            ]
+        );
+
+        if (result.changes === 0) {
+            return res.status(404).json({
+                success: false,
+                message:
+                    'Không tìm thấy dự án hoặc bạn không có quyền hủy chia sẻ'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Đã hủy link chia sẻ'
+        });
+
+    } catch (err) {
+        console.error('Lỗi hủy chia sẻ:', err);
+
+        res.status(500).json({
+            success: false,
+            message: 'Không thể hủy link chia sẻ'
+        });
+    }
+});
+
+
+// =====================================================
+// PROJECTS - XEM PROJECT ĐƯỢC CHIA SẺ
+// =====================================================
+
+app.get('/api/shared-project/:token', async (req, res) => {
+    try {
+        const projectQuery = sql(`
+            SELECT
+                id,
+                name,
+                canvas_data,
+                created_at,
+                updated_at
+            FROM projects
+            WHERE share_token = ?
+        `);
+
+        const project = await dbGet(
+            projectQuery,
+            [req.params.token]
+        );
+
+        if (!project) {
+            return res.status(404).json({
+                success: false,
+                message: 'Link chia sẻ không tồn tại hoặc đã bị hủy'
+            });
+        }
+
+        res.json({
+            success: true,
+            project
+        });
+
+    } catch (err) {
+        console.error('Lỗi lấy project chia sẻ:', err);
+
+        res.status(500).json({
+            success: false,
+            message: 'Không thể tải dự án được chia sẻ'
+        });
+    }
+});
+
+
+// =====================================================
+// VIEWER PAGE
+// =====================================================
+
+app.get('/view/:token', (req, res) => {
+    res.sendFile(
+        path.join(__dirname, 'public', 'viewer.html')
+    );
 });
 
 
