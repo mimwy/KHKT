@@ -178,31 +178,102 @@ function updateZoomDisplay() {
 }
 
 
-function applyZoom() {
-    canvas.setZoom(currentZoom);
+// ============================================================
+// APPLY WHOLE-BOARD ZOOM
+// ============================================================
+//
+// Quan trọng:
+// Không chỉ phóng to object bằng viewportTransform.
+// Ta đồng thời tăng kích thước canvas + canvas wrapper
+// theo zoom để TOÀN BỘ BOARD (nền + object) cùng lớn/nhỏ.
+
+function applyWholeBoardZoom(
+    translateX = 0,
+    translateY = 0
+) {
+    const floor =
+        getCurrentFloor();
+
+    if (!floor) {
+        return;
+    }
+
+    const baseWidth =
+        Number(floor.width) ||
+        1200;
+
+    const baseHeight =
+        Number(floor.height) ||
+        800;
+
+    const displayWidth =
+        Math.max(
+            1,
+            Math.round(
+                baseWidth *
+                currentZoom
+            )
+        );
+
+    const displayHeight =
+        Math.max(
+            1,
+            Math.round(
+                baseHeight *
+                currentZoom
+            )
+        );
+
+    // Canvas DOM cũng phải lớn/nhỏ theo zoom.
+    canvas.setDimensions({
+        width: displayWidth,
+        height: displayHeight
+    });
+
+    // Fabric tạo một wrapper quanh hai canvas (lower + upper).
+    // Đồng bộ kích thước wrapper để vùng board thực sự scale.
+    const wrapper =
+        canvas.wrapperEl ||
+        document.querySelector(
+            ".canvas-container"
+        );
+
+    if (wrapper) {
+        wrapper.style.width =
+            displayWidth + "px";
+
+        wrapper.style.height =
+            displayHeight + "px";
+    }
 
     canvas.setViewportTransform([
         currentZoom,
         0,
         0,
         currentZoom,
-        canvas.viewportTransform[4],
-        canvas.viewportTransform[5]
+        Number(translateX) || 0,
+        Number(translateY) || 0
     ]);
 
+    canvas.calcOffset();
     canvas.requestRenderAll();
 
     updateZoomDisplay();
 }
 
 
+// ============================================================
+// SET ZOOM
+// ============================================================
+
 function setZoom(
     value,
     centerPoint = null
 ) {
-    const oldZoom = currentZoom;
+    const oldZoom =
+        currentZoom;
 
-    currentZoom =
+    const newZoom =
         Math.max(
             MIN_ZOOM,
             Math.min(
@@ -211,32 +282,54 @@ function setZoom(
             )
         );
 
-    if (
-        !centerPoint
-    ) {
+    if (!Number.isFinite(newZoom)) {
+        return;
+    }
+
+    // Mặc định zoom quanh tâm vùng xem.
+    if (!centerPoint) {
         centerPoint = {
             x:
                 boardWrapper.clientWidth / 2,
-
             y:
                 boardWrapper.clientHeight / 2
         };
     }
 
-    const point =
-        new fabric.Point(
-            centerPoint.x,
-            centerPoint.y
-        );
+    const oldVpt =
+        canvas.viewportTransform ||
+        [oldZoom, 0, 0, oldZoom, 0, 0];
 
-    canvas.zoomToPoint(
-        point,
-        currentZoom
+    const oldTranslateX =
+        Number(oldVpt[4]) || 0;
+
+    const oldTranslateY =
+        Number(oldVpt[5]) || 0;
+
+    // Tính điểm của board đang nằm dưới con trỏ/tâm.
+    const boardPointX =
+        (centerPoint.x - oldTranslateX) /
+        (oldZoom || 1);
+
+    const boardPointY =
+        (centerPoint.y - oldTranslateY) /
+        (oldZoom || 1);
+
+    const newTranslateX =
+        centerPoint.x -
+        boardPointX * newZoom;
+
+    const newTranslateY =
+        centerPoint.y -
+        boardPointY * newZoom;
+
+    currentZoom =
+        newZoom;
+
+    applyWholeBoardZoom(
+        newTranslateX,
+        newTranslateY
     );
-
-    canvas.requestRenderAll();
-
-    updateZoomDisplay();
 }
 
 
@@ -263,18 +356,10 @@ function zoomOut() {
 function resetZoom() {
     currentZoom = 1;
 
-    canvas.setViewportTransform([
-        1,
-        0,
-        0,
-        1,
+    applyWholeBoardZoom(
         0,
         0
-    ]);
-
-    canvas.requestRenderAll();
-
-    updateZoomDisplay();
+    );
 }
 
 
@@ -299,10 +384,12 @@ function fitBoardToScreen() {
         );
 
     const width =
-        Number(floor.width) || 1200;
+        Number(floor.width) ||
+        1200;
 
     const height =
-        Number(floor.height) || 800;
+        Number(floor.height) ||
+        800;
 
     const zoomX =
         availableWidth / width;
@@ -310,39 +397,34 @@ function fitBoardToScreen() {
     const zoomY =
         availableHeight / height;
 
-    const newZoom =
-        Math.min(
-            zoomX,
-            zoomY,
-            MAX_ZOOM
-        );
-
     currentZoom =
         Math.max(
             MIN_ZOOM,
-            newZoom
+            Math.min(
+                zoomX,
+                zoomY,
+                MAX_ZOOM
+            )
         );
 
-    canvas.setViewportTransform([
-        currentZoom,
-        0,
-        0,
-        currentZoom,
+    const translateX =
         Math.max(
             0,
             (boardWrapper.clientWidth -
                 width * currentZoom) / 2
-        ),
+        );
+
+    const translateY =
         Math.max(
             0,
             (boardWrapper.clientHeight -
                 height * currentZoom) / 2
-        )
-    ]);
+        );
 
-    canvas.requestRenderAll();
-
-    updateZoomDisplay();
+    applyWholeBoardZoom(
+        translateX,
+        translateY
+    );
 }
 
 
@@ -464,18 +546,10 @@ function loadFloor(floorId) {
     } else {
         makeCanvasReadOnly();
 
-        canvas.setViewportTransform([
-            currentZoom,
-            0,
-            0,
-            currentZoom,
+        applyWholeBoardZoom(
             0,
             0
-        ]);
-
-        canvas.requestRenderAll();
-
-        updateZoomDisplay();
+        );
     }
 }
 
@@ -493,16 +567,10 @@ function applyStoredFloorZoom(
             )
         );
 
-    canvas.setViewportTransform([
-        currentZoom,
-        0,
-        0,
-        currentZoom,
+    applyWholeBoardZoom(
         0,
         0
-    ]);
-
-    updateZoomDisplay();
+    );
 }
 
 
@@ -788,20 +856,235 @@ canvas.on(
 // ============================================================
 // PAN BẢN ĐỒ
 // ============================================================
+//
+// Viewer là chế độ chỉ xem nên có thể cho người dùng
+// nhấn giữ + kéo để di chuyển toàn bộ góc nhìn của board.
+// Hỗ trợ:
+// - Desktop: kéo chuột trái hoặc chuột giữa
+// - Mobile / tablet: chạm + kéo một ngón tay
+//
+// Khi chỉ click mà không kéo, thao tác click/double-click
+// trên tủ sách vẫn được giữ nguyên.
 
 let isPanning = false;
+
+let panPointerId = null;
 
 let panStartX = 0;
 let panStartY = 0;
 
+let panMoved = false;
+
+const PAN_THRESHOLD = 5;
+
+
+// ------------------------------------------
+// Bắt đầu kéo
+// ------------------------------------------
+
+boardWrapper.addEventListener(
+    "pointerdown",
+    event => {
+
+        // Chỉ nhận:
+// - chuột trái / giữa
+// - touch
+// - pen
+        const isMouse =
+            event.pointerType === "mouse";
+
+        if (
+            isMouse &&
+            event.button !== 0 &&
+            event.button !== 1
+        ) {
+            return;
+        }
+
+        isPanning = true;
+
+        panPointerId =
+            event.pointerId;
+
+        panStartX =
+            event.clientX;
+
+        panStartY =
+            event.clientY;
+
+        panMoved = false;
+
+        boardWrapper.classList.add(
+            "is-panning"
+        );
+
+        boardWrapper.style.cursor =
+            "grabbing";
+
+        try {
+            boardWrapper.setPointerCapture(
+                event.pointerId
+            );
+        } catch (error) {
+            // Một số trình duyệt/mobile có thể không hỗ trợ
+            // pointer capture trong trường hợp này.
+        }
+
+        // Không preventDefault tại pointerdown để giữ click/tap
+        // và double-click tủ sách hoạt động trên mobile.
+    }
+);
+
+
+// ------------------------------------------
+// Đang kéo
+// ------------------------------------------
+
+boardWrapper.addEventListener(
+    "pointermove",
+    event => {
+
+        if (
+            !isPanning ||
+            event.pointerId !== panPointerId
+        ) {
+            return;
+        }
+
+        const dx =
+            event.clientX -
+            panStartX;
+
+        const dy =
+            event.clientY -
+            panStartY;
+
+        if (
+            Math.abs(dx) >= PAN_THRESHOLD ||
+            Math.abs(dy) >= PAN_THRESHOLD
+        ) {
+            panMoved = true;
+        }
+
+        if (!panMoved) {
+            return;
+        }
+
+        const vpt =
+            canvas.viewportTransform;
+
+        // Di chuyển góc nhìn của board.
+        vpt[4] += dx;
+        vpt[5] += dy;
+
+        canvas.requestRenderAll();
+
+        panStartX =
+            event.clientX;
+
+        panStartY =
+            event.clientY;
+
+        // Ngăn trang web cuộn theo ngón tay
+        // khi người dùng đang kéo board.
+        if (
+            event.pointerType !== "mouse"
+        ) {
+            event.preventDefault();
+        }
+    }
+);
+
+
+// ------------------------------------------
+// Kết thúc kéo
+// ------------------------------------------
+
+function stopBoardPan(event) {
+
+    if (
+        !isPanning
+    ) {
+        return;
+    }
+
+    if (
+        event &&
+        event.pointerId !== undefined &&
+        event.pointerId !== panPointerId
+    ) {
+        return;
+    }
+
+    isPanning = false;
+
+    boardWrapper.classList.remove(
+        "is-panning"
+    );
+
+    boardWrapper.style.cursor =
+        "grab";
+
+    try {
+
+        if (
+            panPointerId !== null
+        ) {
+            boardWrapper.releasePointerCapture(
+                panPointerId
+            );
+        }
+
+    } catch (error) {
+        // Bỏ qua nếu pointer capture đã tự kết thúc.
+    }
+
+    panPointerId = null;
+}
+
+boardWrapper.addEventListener(
+    "pointerup",
+    stopBoardPan
+);
+
+boardWrapper.addEventListener(
+    "pointercancel",
+    stopBoardPan
+);
+
+boardWrapper.addEventListener(
+    "lostpointercapture",
+    () => {
+        isPanning = false;
+
+        boardWrapper.classList.remove(
+            "is-panning"
+        );
+
+        boardWrapper.style.cursor =
+            "grab";
+
+        panPointerId = null;
+    }
+);
+
+
+// ------------------------------------------
+// Mouse middle: giữ chức năng cũ
+// ------------------------------------------
+
 canvas.on(
     "mouse:down",
     event => {
+
         if (
             event.e &&
             event.e.button === 1
         ) {
+
             isPanning = true;
+
+            panPointerId = null;
 
             panStartX =
                 event.e.clientX;
@@ -809,12 +1092,10 @@ canvas.on(
             panStartY =
                 event.e.clientY;
 
+            panMoved = false;
+
             canvas.defaultCursor =
                 "grabbing";
-
-            canvas.discardActiveObject();
-
-            canvas.requestRenderAll();
         }
     }
 );
@@ -822,23 +1103,34 @@ canvas.on(
 canvas.on(
     "mouse:move",
     event => {
+
         if (!isPanning) {
+            return;
+        }
+
+        // Pointer pan đang xử lý chuột trái / touch.
+        if (
+            panPointerId !== null
+        ) {
             return;
         }
 
         const e =
             event.e;
 
-        const vpt =
-            canvas.viewportTransform;
-
-        vpt[4] +=
+        const dx =
             e.clientX -
             panStartX;
 
-        vpt[5] +=
+        const dy =
             e.clientY -
             panStartY;
+
+        const vpt =
+            canvas.viewportTransform;
+
+        vpt[4] += dx;
+        vpt[5] += dy;
 
         canvas.requestRenderAll();
 
@@ -853,6 +1145,13 @@ canvas.on(
 canvas.on(
     "mouse:up",
     () => {
+
+        if (
+            panPointerId !== null
+        ) {
+            return;
+        }
+
         isPanning = false;
 
         canvas.defaultCursor =
@@ -862,7 +1161,18 @@ canvas.on(
 
 
 // ============================================================
+// TOUCH / CURSOR
+// ============================================================
+
+// Cho phép dùng một ngón tay kéo board trên mobile.
+// Khi không kéo board, double-click / click tủ sách vẫn hoạt động.
+boardWrapper.style.touchAction = "none";
+boardWrapper.style.cursor = "grab";
+
+
+// ============================================================
 // MOUSE WHEEL ZOOM
+
 // ============================================================
 
 boardWrapper.addEventListener(
