@@ -888,6 +888,102 @@ canvas.on(
 
 
 // ============================================================
+// DOUBLE TAP TỦ SÁCH - MOBILE
+// ============================================================
+//
+// Trên điện thoại, trình duyệt thường không phát sinh sự kiện
+// "dblclick" giống chuột desktop. Vì vậy viewer cần tự nhận diện
+// 2 lần chạm nhanh vào cùng một tủ sách.
+//
+// Quy tắc:
+// - Chỉ xử lý touch / pen, không ảnh hưởng desktop mouse.
+// - Không mở modal nếu người dùng đang kéo board.
+// - Không mở modal khi đang pinch zoom 2 ngón.
+// - Hai lần chạm phải vào cùng một tủ sách.
+
+let lastTapTime = 0;
+let lastTapX = 0;
+let lastTapY = 0;
+let lastTapTarget = null;
+
+const DOUBLE_TAP_DELAY = 380;
+const DOUBLE_TAP_DISTANCE = 30;
+
+function resetMobileTapState() {
+    lastTapTime = 0;
+    lastTapX = 0;
+    lastTapY = 0;
+    lastTapTarget = null;
+}
+
+
+boardScroll.addEventListener(
+    "pointerup",
+    event => {
+        // Chỉ xử lý điện thoại / tablet.
+        if (
+            event.pointerType !== "touch" &&
+            event.pointerType !== "pen"
+        ) {
+            return;
+        }
+
+        // Nếu vừa pinch zoom thì không coi đây là double tap.
+        if (pinchActive) {
+            resetMobileTapState();
+            return;
+        }
+
+        // Nếu đã kéo board thì đây là thao tác pan, không phải tap.
+        if (panMoved) {
+            resetMobileTapState();
+            return;
+        }
+
+        // Fabric tìm object ngay tại vị trí ngón tay nhấc lên.
+        const target =
+            canvas.findTarget(event, false);
+
+        if (
+            !target ||
+            target.objectType !== "bookshelf"
+        ) {
+            resetMobileTapState();
+            return;
+        }
+
+        const now =
+            performance.now();
+
+        const dx =
+            event.clientX - lastTapX;
+
+        const dy =
+            event.clientY - lastTapY;
+
+        const distance =
+            Math.hypot(dx, dy);
+
+        const isSecondTap =
+            lastTapTarget === target &&
+            now - lastTapTime <= DOUBLE_TAP_DELAY &&
+            distance <= DOUBLE_TAP_DISTANCE;
+
+        if (isSecondTap) {
+            openBooksModal(target);
+            resetMobileTapState();
+            return;
+        }
+
+        lastTapTime = now;
+        lastTapX = event.clientX;
+        lastTapY = event.clientY;
+        lastTapTarget = target;
+    }
+);
+
+
+// ============================================================
 // PAN BOARD - KIỂU CANVA
 // ============================================================
 //
@@ -1091,6 +1187,7 @@ boardScroll.addEventListener(
 // PINCH ZOOM - MOBILE
 // ============================================================
 
+let pinchActive = false;
 let pinchStartDistance = null;
 let pinchStartZoom = 1;
 let pinchCenter = null;
@@ -1129,6 +1226,8 @@ boardScroll.addEventListener(
         if (event.touches.length !== 2) {
             return;
         }
+
+        pinchActive = true;
 
         // Khi chuyển sang 2 ngón, dừng pan một ngón.
         isPanning = false;
@@ -1200,6 +1299,7 @@ boardScroll.addEventListener(
 
 
 function stopPinchZoom() {
+    pinchActive = false;
     pinchStartDistance = null;
     pinchStartZoom = currentZoom;
     pinchCenter = null;
